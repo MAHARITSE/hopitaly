@@ -9,6 +9,7 @@ Fixes:
   - ImportError: cannot import name 'getargspec'
   - AttributeError: 'DjangoTranslation' object has no attribute 'set_output_charset'
   - AttributeError: module 'html.parser' has no attribute 'HTMLParseError'
+  - ModuleNotFoundError: No module named 'cgi'  (Python 3.13+)
 """
 import os
 import sys
@@ -101,6 +102,60 @@ except Exception as e:
     _trans_patch_error = str(e)
 else:
     _trans_patch_error = None
+
+# 5. Patch cgi module (completely removed in Python 3.13+)
+#    Django 1.6's http/multipartparser.py does 'import cgi' and uses
+#    cgi.valid_boundary(); templates.py uses cgi.parse_header().
+try:
+    import cgi
+    # cgi still exists (Python < 3.13), nothing to do
+except ImportError:
+    import re as _re
+
+    class _CgiShim:
+        """Minimal cgi module shim for Django 1.6.5 compatibility."""
+
+        @staticmethod
+        def valid_boundary(s):
+            """Validate a multipart boundary string (RFC 2046)."""
+            if isinstance(s, bytes):
+                pattern = b"^[ -~]{0,200}[!-~]$"
+            else:
+                pattern = "^[ -~]{0,200}[!-~]$"
+            return _re.match(pattern, s)
+
+        @staticmethod
+        def parse_header(line):
+            """Parse a Content-type-like header into (main_value, params_dict)."""
+            parts = _cgi_parseparam(';' + line)
+            key = next(parts)
+            pdict = {}
+            for p in parts:
+                i = p.find('=')
+                if i >= 0:
+                    name = p[:i].strip().lower()
+                    value = p[i+1:].strip()
+                    if len(value) >= 2 and value[0] == value[-1] == '"':
+                        value = value[1:-1]
+                        value = value.replace('\\\\', '\\').replace('\\"', '"')
+                    pdict[name] = value
+            return key, pdict
+
+    def _cgi_parseparam(s):
+        """Split param string by semicolons, respecting quoted strings."""
+        while s[:1] == ';':
+            s = s[1:]
+            end = s.find(';')
+            while end > 0 and (s.count('"', 0, end) - s.count('\\"', 0, end)) % 2:
+                end = s.find(';', end + 1)
+            if end < 0:
+                end = len(s)
+            f = s[:end]
+            yield f.strip()
+            s = s[end:]
+
+    cgi = _CgiShim()
+    sys.modules['cgi'] = cgi
 
 # =====================================================================
 
