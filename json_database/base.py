@@ -5,7 +5,8 @@ Stores data in a single JSON file instead of SQLite.
 import os
 import json
 from django.db import DatabaseError
-from django.db.backends import BaseDatabaseWrapper, BaseDatabaseIntrospection, BaseDatabaseOperations, BaseDatabaseClient, BaseDatabaseValidation, BaseDatabaseFeatures, BaseDatabaseCreation
+from django.db.backends import BaseDatabaseWrapper, BaseDatabaseIntrospection, BaseDatabaseOperations, BaseDatabaseClient, BaseDatabaseValidation, BaseDatabaseFeatures
+from django.db.backends.creation import BaseDatabaseCreation
 from django.db.utils import IntegrityError
 
 
