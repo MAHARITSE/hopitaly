@@ -84,3 +84,42 @@ Requirements Document
 
 Test Plan Document
 - ProjectCurryTestPlanTracker.xls.xlsx (located under the public_html/Release-R2Beta/cross-team-testing directory)
+
+---
+
+## Compatibility Notes (2026)
+
+**Important fix applied** for running this old Django 1.6.5 project on modern Python (3.11+ / 3.12+):
+
+### Root cause of the original error
+```
+ModuleNotFoundError: No module named 'imp'
+```
+Django 1.6.5 (2014) uses the `imp` module, which was **removed in Python 3.12**.
+
+### What was fixed
+- `manage.py` now contains early compatibility patches for:
+  - `imp` (via `zombie-imp`)
+  - `inspect.getargspec`
+  - `html.parser.HTMLParseError`
+  - `collections.Iterator`
+  - `DjangoTranslation.set_output_charset`
+
+### Installation (updated)
+Use the provided scripts:
+- Windows: `install\install_all.bat`
+- Linux/macOS: `./install.sh`
+
+Or manually:
+```bash
+pip install -r requirements.txt
+python manage.py syncdb --noinput     # ← IMPORTANT: use syncdb, not migrate
+python manage.py runserver
+```
+
+**Recommended Python**: 3.11.x (best compatibility). Python 3.12+ also works thanks to the patches.
+
+### Sample credentials (unchanged)
+- Django admin: `admin` / `password`
+- HealthNet admin: `admina@test.com` / `a`
+- Doctor: `doctora@test.com` / `a`
