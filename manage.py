@@ -9,6 +9,7 @@ Fixes:
   - ImportError: cannot import name 'getargspec'
   - AttributeError: 'DjangoTranslation' object has no attribute 'set_output_charset'
   - AttributeError: module 'html.parser' has no attribute 'HTMLParseError'
+  - AttributeError: type object 'BuiltinImporter' has no attribute 'find_module'  (Python 3.12+)
   - ModuleNotFoundError: No module named 'cgi'  (Python 3.13+)
 """
 import os
@@ -102,6 +103,52 @@ except Exception as e:
     _trans_patch_error = str(e)
 else:
     _trans_patch_error = None
+
+# 4b. Patch find_module() on the import machinery (removed in Python 3.12+).
+#     Django 1.6's django.utils.module_loading.module_has_submodule() calls
+#     finder.find_module(...) on every entry of sys.meta_path (BuiltinImporter,
+#     FrozenImporter, PathFinder) and on sys.path_importer_cache finders
+#     (FileFinder) - this is hit by admin.autodiscover() on every request
+#     setup. PEP 451 replaced find_module() with find_spec() back in Python
+#     3.4, and the legacy aliases were finally deleted in Python 3.12, which
+#     causes:
+#       AttributeError: type object 'BuiltinImporter' has no attribute 'find_module'
+#     We re-add thin class-level wrappers that delegate to find_spec().
+try:
+    from importlib import machinery as _import_machinery
+
+    # a) Meta path finders expose a class level API: find_module(cls, name, path).
+    #    On Python <= 3.11 it still exists natively, so leave it alone there.
+    def _make_meta_find_module_shim():
+        @classmethod
+        def find_module(cls, fullname, path=None):
+            find_spec = getattr(cls, 'find_spec', None)
+            if find_spec is None:
+                return None
+            spec = find_spec(fullname, path)
+            if spec is None or spec.loader is None:
+                return None
+            return spec.loader
+        return find_module
+
+    for _meta_finder in (_import_machinery.BuiltinImporter,
+                         _import_machinery.FrozenImporter,
+                         _import_machinery.PathFinder):
+        if not hasattr(_meta_finder, 'find_module'):
+            _meta_finder.find_module = _make_meta_find_module_shim()
+
+    # b) FileFinder is instantiated per sys.path entry, so its API is at the
+    #    instance level: find_module(self, name[, path]) - one argument only.
+    if not hasattr(_import_machinery.FileFinder, 'find_module'):
+        def _file_finder_find_module(self, fullname, path=None):
+            spec = self.find_spec(fullname)
+            if spec is None or spec.loader is None:
+                return None
+            return spec.loader
+
+        _import_machinery.FileFinder.find_module = _file_finder_find_module
+except Exception:
+    pass
 
 # 5. Patch cgi module (completely removed in Python 3.13+)
 #    Django 1.6's http/multipartparser.py does 'import cgi' and uses

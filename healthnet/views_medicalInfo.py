@@ -33,8 +33,8 @@ def list_view(request):
 
 
 def update_view(request):
-    # Authentication check.
-    authentication_result = views.authentication_check(request, [Account.ACCOUNT_DOCTOR,Account.ACCOUNT_NURSE])
+    # Authentication check. Also require the pk GET key so a bare URL doesn't 500.
+    authentication_result = views.authentication_check(request, [Account.ACCOUNT_DOCTOR,Account.ACCOUNT_NURSE], ['pk'])
     if authentication_result is not None: return authentication_result
     # Validation Check. Make sure an appointment exists for the given pk.
     pk = request.GET['pk']
