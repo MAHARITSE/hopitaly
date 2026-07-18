@@ -58,8 +58,8 @@ WSGI_APPLICATION = 'prototype.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        'ENGINE': 'json_database',
+        'NAME': os.path.join(BASE_DIR, 'db.json'),
     }
 }
 
