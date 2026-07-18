@@ -1,5 +1,6 @@
 @echo off
 REM HealthNet - Installation et lancement automatisé
+REM Compatible Django 1.6.5 + Python 3.11+ (incl. 3.12+)
 REM Placez ce fichier dans le dossier contenant manage.py ou utilisez-le depuis install/
 
 setlocal
@@ -19,19 +20,19 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM Installer Django et dépendances
-echo [2/4] Installation des dépendances (Django 1.6.5)...
-pip install django==1.6.5
+REM Installer Django 1.6.5 + compatibilité Python moderne
+echo [2/4] Installation des dépendances (Django 1.6.5 + zombie-imp pour Python 3.12+)...
+pip install django==1.6.5 zombie-imp
 if errorlevel 1 (
     echo Avertissement : échec d'installation de django==1.6.5, tentative avec la dernière version...
-    pip install django
+    pip install django zombie-imp
 )
 
-REM Migrations
-echo [3/4] Migration de la base de données...
-python manage.py migrate
+REM Synchroniser la base de données (Django 1.6 utilise syncdb, pas migrate)
+echo [3/4] Configuration de la base de données (syncdb)...
+python manage.py syncdb --noinput
 if errorlevel 1 (
-    echo Avertissement : échec de la migration.
+    echo Avertissement : échec de la configuration de la base.
 )
 
 REM Lancement serveur

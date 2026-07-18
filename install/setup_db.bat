@@ -1,11 +1,11 @@
 @echo off
-REM Configurer la base de données HealthNet
+REM Configurer la base de données HealthNet (Django 1.6.5 compatible)
 cd /d "%~dp0.."
-echo Migration de la base...
-python manage.py migrate
+echo Configuration de la base de données HealthNet (syncdb)...
+python manage.py syncdb --noinput
 if not errorlevel 1 (
-    echo Base configurée avec succès.
+    echo Base de données configurée avec succès.
 ) else (
-    echo Erreur lors de la migration.
+    echo Avertissement lors de la configuration.
 )
 pause
