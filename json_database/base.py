@@ -142,12 +142,12 @@ class DatabaseWrapper(BaseDatabaseWrapper):
 
     def __init__(self, *args, **kwargs):
         super(DatabaseWrapper, self).__init__(*args, **kwargs)
-        self.features = DatabaseFeatures()
+        self.features = DatabaseFeatures(self)
         self.ops = DatabaseOperations(self)
         self.client = DatabaseClient(self)
         self.creation = DatabaseCreation(self)
         self.introspection = DatabaseIntrospection(self)
-        self.validation = BaseDatabaseValidation()
+        self.validation = BaseDatabaseValidation(self)
         self.data_store_path = kwargs.get('NAME', 'db.json')
         if not os.path.isabs(self.data_store_path):
             base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

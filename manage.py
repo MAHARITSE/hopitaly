@@ -113,40 +113,48 @@ else:
 #     3.4, and the legacy aliases were finally deleted in Python 3.12, which
 #     causes:
 #       AttributeError: type object 'BuiltinImporter' has no attribute 'find_module'
-#     We re-add thin class-level wrappers that delegate to find_spec().
+#     We re-add thin wrappers that delegate to find_spec().
 try:
     from importlib import machinery as _import_machinery
 
-    # a) Meta path finders expose a class level API: find_module(cls, name, path).
-    #    On Python <= 3.11 it still exists natively, so leave it alone there.
-    def _make_meta_find_module_shim():
-        @classmethod
-        def find_module(cls, fullname, path=None):
-            find_spec = getattr(cls, 'find_spec', None)
-            if find_spec is None:
-                return None
+    def _find_module_shim(self, fullname, path=None):
+        """Delegate Django 1.6's find_module() to find_spec() (PEP 451)."""
+        find_spec = getattr(self, 'find_spec', None)
+        if find_spec is None:
+            return None
+        try:
             spec = find_spec(fullname, path)
-            if spec is None or spec.loader is None:
-                return None
-            return spec.loader
-        return find_module
+        except TypeError:
+            # FileFinder.find_spec() takes only (fullname).
+            spec = find_spec(fullname)
+        if spec is None or getattr(spec, 'loader', None) is None:
+            return None
+        return spec.loader
 
+    def _patch_finder(finder):
+        if not hasattr(finder, 'find_module'):
+            try:
+                finder.find_module = _find_module_shim
+            except Exception:
+                pass
+
+    # a) Class-level meta path finders (BuiltinImporter, FrozenImporter,
+    #    PathFinder) - on Python <= 3.11 they still have find_module natively,
+    #    so this only patches the Python 3.12+ case.
     for _meta_finder in (_import_machinery.BuiltinImporter,
                          _import_machinery.FrozenImporter,
                          _import_machinery.PathFinder):
-        if not hasattr(_meta_finder, 'find_module'):
-            _meta_finder.find_module = _make_meta_find_module_shim()
+        _patch_finder(_meta_finder)
 
-    # b) FileFinder is instantiated per sys.path entry, so its API is at the
-    #    instance level: find_module(self, name[, path]) - one argument only.
-    if not hasattr(_import_machinery.FileFinder, 'find_module'):
-        def _file_finder_find_module(self, fullname, path=None):
-            spec = self.find_spec(fullname)
-            if spec is None or spec.loader is None:
-                return None
-            return spec.loader
+    # b) Any *instances* already registered on sys.meta_path. setuptools'
+    #    _distutils_hack.DistutilsMetaFinder is added here and ALSO lacks
+    #    find_module() on modern Python - Django 1.6 iterates sys.meta_path
+    #    directly, so it must be patched too.
+    for _finder in list(getattr(sys, 'meta_path', [])):
+        _patch_finder(_finder)
 
-        _import_machinery.FileFinder.find_module = _file_finder_find_module
+    # c) FileFinder is instantiated per sys.path entry (instance level).
+    _patch_finder(_import_machinery.FileFinder)
 except Exception:
     pass
 
